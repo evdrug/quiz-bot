@@ -31,17 +31,17 @@ questions = get_questions()
 
 
 def handler(event, vk_api):
-    user_active_question = r.get(event.user_id)
+    user_active_question = r.get('vk_{}'.format(event.user_id))
     if not user_active_question and event.text == 'Новый вопрос':
         question = questions[random.randint(0, len(questions) - 1)]
-        r.set(event.user_id, json.dumps(question))
+        r.set('vk_{}'.format(event.user_id), json.dumps(question))
         send_message(event, vk_api, question['question'])
     elif user_active_question and event.text == 'Сдаться':
         answer = json.loads(user_active_question.decode()).get('answer')
         send_message(event, vk_api,
                      (f'Правильный ответ: {answer} \n'
                       f'Для следующего вопроса нажми «Новый вопрос»'))
-        r.delete(event.user_id)
+        r.delete('vk_{}'.format(event.user_id))
     elif event.text == 'Мой счёт':
         send_message(event, vk_api, f"Ваш счёт {None}")
     elif user_active_question:
@@ -50,7 +50,7 @@ def handler(event, vk_api):
             send_message(event, vk_api,
                          ('Правильно! Поздравляю!\n'
                           'Для следующего вопроса нажми «Новый вопрос»'))
-            r.delete(event.user_id)
+            r.delete('vk_{}'.format(event.user_id))
         else:
             send_message(event, vk_api, 'Неправильно... Попробуешь ещё раз?')
     else:

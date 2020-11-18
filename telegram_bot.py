@@ -41,7 +41,7 @@ def start(bot, update):
 
 
 def check_answer(bot, update):
-    user_active_question = r.get(update.message.chat_id)
+    user_active_question = r.get('tg_{}'.format(update.message.chat_id))
     answer = json.loads(user_active_question.decode()).get('answer')
     if answer.split('.')[0].lower() == update.message.text.lower():
         update.message.reply_text(
@@ -57,13 +57,13 @@ def my_score(bot, update):
 
 def new_question(bot, update):
     question = questions[randint(0, len(questions) - 1)]
-    r.set(update.message.chat_id, json.dumps(question))
+    r.set('tg_{}'.format(update.message.chat_id), json.dumps(question))
     update.message.reply_text(question['question'])
     return StepQuiz.ANSWER.value
 
 
 def give_up(bot, update):
-    user_active_question = r.get(update.message.chat_id)
+    user_active_question = r.get('tg_{}'.format(update.message.chat_id))
     answer = json.loads(user_active_question.decode()).get('answer')
     update.message.reply_text(
         f'Правильный ответ: {answer} \n Для следующего вопроса нажми «Новый вопрос»')
