@@ -2,7 +2,8 @@ import json
 import logging
 import os
 from enum import Enum, auto
-from random import randint
+import random
+from textwrap import dedent
 
 import redis
 from dotenv import load_dotenv
@@ -14,6 +15,8 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, \
 from open_file_quiz import get_questions
 from telegram_logger import TelegramLogsHandler
 
+logger = logging.getLogger('telegram_bot')
+
 
 class StepQuiz(Enum):
     NEW_QUESTION = auto()
@@ -22,20 +25,17 @@ class StepQuiz(Enum):
     MY_SCORE = auto()
 
 
-questions = get_questions()
-
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO)
-
-logger = logging.getLogger('telegram_bot')
+QUESTIONS = get_questions()
 
 
 def start(bot, update):
     start_keyboard = [['Новый вопрос', 'Сдаться'], ['Мой счёт']]
     update.message.reply_text(
-        text=("Приветствую!\n Нажмите «Новый вопрос», для начала викторины.\n"
-              "/cancel - для отмены."),
+        text=dedent('''\
+        Приветствую!
+        Нажмите «Новый вопрос», для начала викторины.
+        /cancel - для отмены.
+        '''),
         reply_markup=ReplyKeyboardMarkup(start_keyboard))
     return StepQuiz.NEW_QUESTION.value
 
@@ -45,8 +45,10 @@ def check_answer(bot, update):
     answer = json.loads(user_active_question.decode()).get('answer')
     if answer.split('.')[0].lower() == update.message.text.lower():
         update.message.reply_text(
-            ('Правильно! Поздравляю!\n'
-             'Для следующего вопроса нажми «Новый вопрос»'))
+            dedent('''\
+            Правильно! Поздравляю!
+            Для следующего вопроса нажми «Новый вопрос»
+            '''))
     else:
         update.message.reply_text('Неправильно... Попробуешь ещё раз?')
 
@@ -56,7 +58,7 @@ def my_score(bot, update):
 
 
 def new_question(bot, update):
-    question = questions[randint(0, len(questions) - 1)]
+    question = random.choice(QUESTIONS)
     r.set('tg_{}'.format(update.message.chat_id), json.dumps(question))
     update.message.reply_text(question['question'])
     return StepQuiz.ANSWER.value
@@ -66,7 +68,10 @@ def give_up(bot, update):
     user_active_question = r.get('tg_{}'.format(update.message.chat_id))
     answer = json.loads(user_active_question.decode()).get('answer')
     update.message.reply_text(
-        f'Правильный ответ: {answer} \n Для следующего вопроса нажми «Новый вопрос»')
+        dedent(f'''\
+        Правильный ответ: {answer}
+        Для следующего вопроса нажми «Новый вопрос»
+        '''))
     return StepQuiz.NEW_QUESTION.value
 
 
@@ -80,7 +85,8 @@ def cancel(bot, update):
     return ConversationHandler.END
 
 
-def main():
+if __name__ == '__main__':
+    load_dotenv()
     logger.setLevel(logging.INFO)
     logging.basicConfig(
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -88,6 +94,15 @@ def main():
     updater = Updater(token=os.getenv('TELEGRAM_TOKEN'))
     logger.addHandler(TelegramLogsHandler(updater.bot))
     logger.info('\u2705 Бот запущен')
+
+    try:
+        r = redis.Redis(host=os.getenv('REDIS_URL'),
+                        port=os.getenv('REDIS_PORT'),
+                        db=0, password=os.getenv('REDIS_PASSWORD'))
+        r.client()
+    except ConnectionError as e:
+        logger.error(e)
+        raise e
 
     dp = updater.dispatcher
 
@@ -115,16 +130,3 @@ def main():
 
     updater.start_polling()
     updater.idle()
-
-
-if __name__ == '__main__':
-    load_dotenv()
-    try:
-        r = redis.Redis(host=os.getenv('REDIS_URL'),
-                        port=os.getenv('REDIS_PORT'),
-                        db=0, password=os.getenv('REDIS_PASSWORD'))
-        r.client()
-    except ConnectionError as e:
-        logger.error(e)
-        raise e
-    main()

@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import random
+from textwrap import dedent
 
 import redis
 import vk_api
@@ -14,42 +15,39 @@ from vk_api.longpoll import VkLongPoll, VkEventType
 from open_file_quiz import get_questions
 from telegram_logger import TelegramLogsHandler
 
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO)
+QUESTIONS = get_questions()
 
 logger = logging.getLogger('vk_bot')
 
 keyboard = VkKeyboard(one_time=True)
-
 keyboard.add_button('Новый вопрос', color=VkKeyboardColor.PRIMARY)
 keyboard.add_button('Сдаться', color=VkKeyboardColor.NEGATIVE)
-
 keyboard.add_line()  # Переход на вторую строку
 keyboard.add_button('Мой счёт', color=VkKeyboardColor.SECONDARY)
-questions = get_questions()
 
 
 def handler(event, vk_api):
     user_active_question = r.get('vk_{}'.format(event.user_id))
     if not user_active_question and event.text == 'Новый вопрос':
-        question = questions[random.randint(0, len(questions) - 1)]
+        question = random.choice(QUESTIONS)
         r.set('vk_{}'.format(event.user_id), json.dumps(question))
         send_message(event, vk_api, question['question'])
     elif user_active_question and event.text == 'Сдаться':
         answer = json.loads(user_active_question.decode()).get('answer')
-        send_message(event, vk_api,
-                     (f'Правильный ответ: {answer} \n'
-                      f'Для следующего вопроса нажми «Новый вопрос»'))
+        send_message(event, vk_api, dedent(f'''\
+            Правильный ответ: {answer}
+            Для следующего вопроса нажми «Новый вопрос»
+            '''))
         r.delete('vk_{}'.format(event.user_id))
     elif event.text == 'Мой счёт':
         send_message(event, vk_api, f"Ваш счёт {None}")
     elif user_active_question:
         answer = json.loads(user_active_question.decode()).get('answer')
         if answer.split('.')[0].lower() == event.text.lower():
-            send_message(event, vk_api,
-                         ('Правильно! Поздравляю!\n'
-                          'Для следующего вопроса нажми «Новый вопрос»'))
+            send_message(event, vk_api, dedent('''\
+                Правильно! Поздравляю!
+                Для следующего вопроса нажми «Новый вопрос»
+                '''))
             r.delete('vk_{}'.format(event.user_id))
         else:
             send_message(event, vk_api, 'Неправильно... Попробуешь ещё раз?')
